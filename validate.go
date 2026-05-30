@@ -1,6 +1,18 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+func validateChirp(chirp string) (string, error) {
+	const maxChirpLength = 140
+	if len(chirp) > maxChirpLength {
+		return "", fmt.Errorf("Chirp is too long")
+	}
+
+	return sanitiseChirp(chirp), nil
+}
 
 func sanitiseChirp(chirp string) string {
 	profanityVocabulary := map[string]struct{}{

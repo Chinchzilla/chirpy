@@ -42,7 +42,7 @@ func main() {
 	fsHandler := apiCfg.middlewaresmetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot))))
 	httpMux.Handle("/app/", fsHandler)
 	httpMux.HandleFunc("GET /api/healthz", handlerReadiness)
-	httpMux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
+	httpMux.HandleFunc("POST /api/chirps", apiCfg.handleChrip)
 	httpMux.HandleFunc("POST /api/users", apiCfg.handlerAddUser)
 
 	httpMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
