@@ -40,13 +40,18 @@ func main() {
 
 	httpMux := http.NewServeMux()
 	fsHandler := apiCfg.middlewaresmetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot))))
+
 	httpMux.Handle("/app/", fsHandler)
 	httpMux.HandleFunc("GET /api/healthz", handlerReadiness)
-	httpMux.HandleFunc("POST /api/chirps", apiCfg.handleChrip)
 	httpMux.HandleFunc("POST /api/users", apiCfg.handlerAddUser)
-
+	httpMux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	httpMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	httpMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+
+	// Chirps endpoints
+	httpMux.HandleFunc("POST /api/chirps", apiCfg.handlerNewChrip)
+	httpMux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
+	httpMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChripByID)
 
 	server := &http.Server{
 		Addr:    ":" + port,

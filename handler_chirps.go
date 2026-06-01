@@ -17,7 +17,7 @@ type Chirp struct {
 	UserID    uuid.UUID `json:"user_id"`
 }
 
-func (cfg *apiConfig) handleChrip(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerNewChrip(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body   string    `json:"body"`
 		UserID uuid.UUID `json:"user_id"`
@@ -51,6 +51,46 @@ func (cfg *apiConfig) handleChrip(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: chirpEntry.UpdatedAt,
 		Body:      chirpEntry.Body,
 		UserID:    chirpEntry.UserID,
+	})
+
+}
+
+func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.dbQeries.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
+		return
+	}
+
+	jsonifyChirps := make([]Chirp, len(chirps))
+	for i, chirp := range chirps {
+		jsonifyChirps[i] = Chirp{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		}
+	}
+
+	respondWithJSON(w, http.StatusOK, jsonifyChirps)
+}
+
+func (cfg *apiConfig) handlerChripByID(w http.ResponseWriter, r *http.Request) {
+	chirpID := r.PathValue("chirpID")
+
+	chirp, err := cfg.dbQeries.GetChirpByID(r.Context(), uuid.MustParse(chirpID))
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't get chirp", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
 	})
 
 }
