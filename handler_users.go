@@ -11,10 +11,13 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
+	AccessToken  *string   `json:"token,omitempty"`
+	RefreshToken *string   `json:"refresh_token,omitempty"`
 }
 
 func (cfg *apiConfig) handlerAddUser(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +39,7 @@ func (cfg *apiConfig) handlerAddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cfg.dbQeries.CreateUser(r.Context(), database.CreateUserParams{
+	user, err := cfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
 		Email:          req.Email,
 		HashedPassword: hashedPassword,
 	})
@@ -47,10 +50,13 @@ func (cfg *apiConfig) handlerAddUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonCapableUser := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		IsChirpyRed:  user.IsChirpyRed,
+		AccessToken:  nil,
+		RefreshToken: nil,
 	}
 
 	respondWithJSON(w, http.StatusCreated, &jsonCapableUser)
@@ -70,7 +76,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existingUser, err := cfg.dbQeries.GetUserByEmail(r.Context(), req.Email)
+	existingUser, err := cfg.dbQueries.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "User not found", err)
 		return
@@ -87,12 +93,81 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accessToken, err := auth.MakeJWT(existingUser.ID, cfg.jwtSecret, time.Hour)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't make JWT", err)
+		return
+	}
+
+	refreshToken, err := cfg.dbQueries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:  auth.MakeRefreshToken(),
+		UserID: existingUser.ID,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't make refresh token", err)
+		return
+	}
+
 	jsonCapableUser := User{
-		ID:        existingUser.ID,
-		CreatedAt: existingUser.CreatedAt,
-		UpdatedAt: existingUser.UpdatedAt,
-		Email:     existingUser.Email,
+		ID:           existingUser.ID,
+		CreatedAt:    existingUser.CreatedAt,
+		UpdatedAt:    existingUser.UpdatedAt,
+		Email:        existingUser.Email,
+		IsChirpyRed:  existingUser.IsChirpyRed,
+		AccessToken:  &accessToken,
+		RefreshToken: &refreshToken.Token,
 	}
 
 	respondWithJSON(w, http.StatusOK, &jsonCapableUser)
+}
+
+func (cfg *apiConfig) handlerChangePassword(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	if err := decoder.Decode(&params); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode request body", err)
+		return
+	}
+
+	accessToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't extract the token from the header", err)
+		return
+	}
+
+	userIDByToken, err := auth.ValidateJWT(accessToken, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't get user by access token", err)
+		return
+	}
+
+	passwordHash, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash the password", err)
+		return
+	}
+
+	updatedUser, err := cfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{ID: userIDByToken, Email: params.Email, HashedPassword: passwordHash})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update the user's passowrd", err)
+		return
+	}
+
+	jsonCapableUser := User{
+		ID:           updatedUser.ID,
+		CreatedAt:    updatedUser.CreatedAt,
+		UpdatedAt:    updatedUser.UpdatedAt,
+		Email:        updatedUser.Email,
+		IsChirpyRed:  updatedUser.IsChirpyRed,
+		AccessToken:  nil,
+		RefreshToken: nil,
+	}
+
+	respondWithJSON(w, http.StatusOK, &jsonCapableUser)
+
 }

@@ -17,8 +17,9 @@ const port = "8080"
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	dbQeries       *database.Queries
+	dbQueries      *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 func main() {
@@ -31,11 +32,13 @@ func main() {
 	}
 
 	getPlatform := os.Getenv("PLATFORM")
+	getJWTSecret := os.Getenv("JWT_SECRET")
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
-		dbQeries:       database.New(db),
+		dbQueries:      database.New(db),
 		platform:       getPlatform,
+		jwtSecret:      getJWTSecret,
 	}
 
 	httpMux := http.NewServeMux()
@@ -44,14 +47,19 @@ func main() {
 	httpMux.Handle("/app/", fsHandler)
 	httpMux.HandleFunc("GET /api/healthz", handlerReadiness)
 	httpMux.HandleFunc("POST /api/users", apiCfg.handlerAddUser)
+	httpMux.HandleFunc("PUT /api/users", apiCfg.handlerChangePassword)
 	httpMux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	httpMux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	httpMux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	// Chirps endpoints
-	httpMux.HandleFunc("POST /api/chirps", apiCfg.handlerNewChrip)
+	httpMux.HandleFunc("POST /api/chirps", apiCfg.handlerPostChrip)
 	httpMux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
 	httpMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChripByID)
+	httpMux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChrip)
+	httpMux.HandleFunc("POST /api/refresh", apiCfg.handlerRefreshToken)
+	httpMux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeRefreshToken)
+	httpMux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerEvent)
 
 	server := &http.Server{
 		Addr:    ":" + port,

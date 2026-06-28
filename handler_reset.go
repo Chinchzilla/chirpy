@@ -11,7 +11,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := cfg.dbQeries.WipeUsers(r.Context()); err != nil {
+	if err := cfg.dbQueries.WipeUsers(r.Context()); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't wipe the users table", err)
 		return
 	}
