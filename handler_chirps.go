@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/Chinchzilla/chirpy/internal/auth"
@@ -67,10 +68,38 @@ func (cfg *apiConfig) handlerPostChrip(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.dbQueries.GetAllChirps(r.Context())
+	authorIDStr := r.URL.Query().Get("author_id")
+
+	var chirps []database.Chirp
+	var err error
+
+	if authorIDStr == "" {
+		chirps, err = cfg.dbQueries.GetAllChirps(r.Context())
+	} else {
+		var authorID uuid.UUID
+		authorID, err = uuid.Parse(authorIDStr)
+		if err != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid author_id", err)
+			return
+		}
+		chirps, err = cfg.dbQueries.GetAllChirpsByUser(r.Context(), authorID)
+	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
 		return
+	}
+
+	sortQuery := r.URL.Query().Get("sort")
+	_, isSort := r.URL.Query()["sort"]
+	if isSort && sortQuery == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else if isSort {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
 	}
 
 	jsonifyChirps := make([]Chirp, len(chirps))

@@ -20,6 +20,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platform       string
 	jwtSecret      string
+	polkaKey       string
 }
 
 func main() {
@@ -33,12 +34,14 @@ func main() {
 
 	getPlatform := os.Getenv("PLATFORM")
 	getJWTSecret := os.Getenv("JWT_SECRET")
+	getPolkaKey := os.Getenv("POLKA_KEY")
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
 		dbQueries:      database.New(db),
 		platform:       getPlatform,
 		jwtSecret:      getJWTSecret,
+		polkaKey:       getPolkaKey,
 	}
 
 	httpMux := http.NewServeMux()

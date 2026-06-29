@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Chinchzilla/chirpy/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -21,6 +22,17 @@ type WebhookRequest struct {
 }
 
 func (cfg *apiConfig) handlerEvent(w http.ResponseWriter, r *http.Request) {
+	receivedToken, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "No token provided in the header", err)
+		return
+	}
+
+	if cfg.polkaKey != receivedToken {
+		respondWithError(w, http.StatusUnauthorized, "Provided token is invalid", err)
+		return
+	}
+
 	req := WebhookRequest{}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode the json body", err)
